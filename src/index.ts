@@ -1,5 +1,8 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // A schema is a collection of type definitions (hence "typeDefs")
 // that together define the "shape" of queries that are executed against
@@ -10,6 +13,7 @@ const typeDefs = `#graphql
 
   # This "Book" type defines the queryable fields for every book in our data source.
   type Book {
+    id: ID!
     title: String
     author: String
   }
@@ -26,38 +30,41 @@ const typeDefs = `#graphql
   }
 `;
 
-const books = [
-  {
-    title: 'The Awakening',
-    author: 'Kate Chopin',
-  },
-  {
-    title: 'City of Glass',
-    author: 'Paul Auster',
-  },
-];
-
 // Resolvers define how to fetch the types defined in your schema.
 // This resolver retrieves books from the "books" array above.
+async function getBooks() {
+  const books = await prisma.book.findMany();
+  return books;
+}
+
 const resolvers = {
   Query: {
-    books: () => {
-      const newBooks = books.map((book) => {
-        return {
-          ...book,
-          title: book.title + ' (from server)',
-        };
-      });
-
-      return newBooks;
+    books: async () => {
+      // Get data from DB
+      const books = await getBooks();
+      console.log(books);
+      return books;
     },
   },
   Mutation: {
-    addBook: (parent, args, context) => {
+    addBook: async (parent, args, context) => {
+      // add book using Prisma
       const { title, author } = args;
-      books.push({ title, author });
 
-      return args;
+      const newAuthor = await prisma.author.create({
+        data: {
+          name: author,
+        },
+      });
+
+      const newBook = await prisma.book.create({
+        data: {
+          title,
+          // authorId: newAuthor.id,
+        },
+      });
+
+      return newBook;
     },
   },
 };
